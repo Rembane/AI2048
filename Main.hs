@@ -10,6 +10,9 @@ data Direction = DUp | DRight | DDown | DLeft
 
 type Board = V.Vector (V.Vector (Maybe Int))
 
+fancyBoard :: Board -> String
+fancyBoard b = "X\tX\tX\tX\n" ++ V.foldr (\row s' -> (V.foldr (\col s -> (maybe "" show col) ++ '\t':s) "" row) ++ '\n':s') "" b
+    
 pairify :: [Int] -> [(Int, Int)]
 pairify (a:b:xs) = (a,b):pairify xs
 
@@ -57,9 +60,12 @@ move DRight v = V.map (moveOneDimension DRight) v
 main = do
     g <- newStdGen
     let b = createBoard g
-    print b
+    putStrLn $ fancyBoard b
+    putStrLn "----------------------------------------"
     let b1 = newCell g $ move DRight b
-    print b1
+    putStrLn $ fancyBoard b1
+    putStrLn "----------------------------------------"
     let b2 = newCell g $ move DUp b1
-    print b2
+    putStrLn $ fancyBoard b2
+    putStrLn "----------------------------------------"
 
