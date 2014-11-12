@@ -17,10 +17,9 @@ updateCell :: (Int,Int) -> Int -> Board -> Board
 updateCell (r,c) new b = let col = (b V.! r) V.// [(c, Just new)] in b V.// [(r, col)]
 
 createBoard :: (RandomGen g) => g -> Board
-createBoard g = updateCell (r2, c2) 2 $ updateCell (r1, c1) 2 empty
+createBoard g = newCell g $ newCell g empty
     where 
-        empty               = V.replicate 4 (V.replicate 4 Nothing)
-        ((r1,c1):(r2,c2):_) = take 2 $ nub $ pairify $ randomRs (0,3) g
+        empty = V.replicate 4 (V.replicate 4 Nothing)
 
 newCell :: (RandomGen g) => g -> Board -> Board
 newCell g b = updateCell (r,c) 2 b
