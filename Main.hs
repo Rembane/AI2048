@@ -1,33 +1,45 @@
 module Main where
 
+import Control.Monad
 import Data.List
 import Data.Maybe
 import qualified Data.Vector as V
 import System.Random
 
 data Direction = DUp | DRight | DDown | DLeft
-    deriving (Show, Eq)
+    deriving (Eq, Ord, Bounded, Enum, Show)
 
 type Board = V.Vector (V.Vector (Maybe Int))
+
+instance Random Direction where
+    random g = case randomR (fromEnum (minBound :: Direction), fromEnum (maxBound :: Direction)) g of
+                    (r, g') -> (toEnum r, g')
+    randomR (a,b) g = case randomR (fromEnum a, fromEnum b) g of
+                           (r, g') -> (toEnum r, g')
+
+randomDirection :: (RandomGen g) => g -> (Direction, g)
+randomDirection g = random g
 
 fancyBoard :: Board -> String
 fancyBoard b = "X\tX\tX\tX\n" ++ V.foldr (\row s' -> (V.foldr (\col s -> (maybe "" show col) ++ '\t':s) "" row) ++ '\n':s') "" b
     
-pairify :: [Int] -> [(Int, Int)]
-pairify (a:b:xs) = (a,b):pairify xs
-
 updateCell :: (Int,Int) -> Int -> Board -> Board
 updateCell (r,c) new b = let col = (b V.! r) V.// [(c, Just new)] in b V.// [(r, col)]
 
 createBoard :: (RandomGen g) => g -> Board
-createBoard g = newCell g $ newCell g empty
+createBoard g = fromJust $ (newCell g empty) >>= (newCell g)
     where 
         empty = V.replicate 4 (V.replicate 4 Nothing)
 
-newCell :: (RandomGen g) => g -> Board -> Board
-newCell g b = updateCell (r,c) 2 b
+-- Return the indexes of all the cells that do not contain anything.
+freeCells :: Board -> Maybe (V.Vector (Int, Int))
+freeCells b | V.null li = Nothing
+            | otherwise = Just li
     where
-        ((r,c):_) = dropWhile (\(r1,c1) -> isJust $ (b V.! r1) V.! c1) $ nub $ pairify $ randomRs (0,3) g
+        li = join $ V.imap (\ri r -> V.map (\ci -> (ri,ci)) $ V.findIndices isNothing r) b
+
+newCell :: (RandomGen g) => g -> Board -> Maybe Board
+newCell g b = fmap (\poss -> updateCell ((V.!) poss $ fst $ randomR (0, (V.length poss) - 1) g) 2 b) (freeCells b)
 
 squish :: [Int] -> [Int]
 squish []       = []
@@ -46,6 +58,7 @@ moveOneDimension dir v =
         onlyHoles = V.replicate (V.length v - V.length sqshd) Nothing
 
 -- Cols become rows. Like for matrices.
+-- (transposeBoard . transposeBoard) == id
 transposeBoard :: Board -> Board
 transposeBoard b = V.map (\c -> V.map (\r -> (b V.! r) V.! c) rows) cols
     where 
@@ -57,15 +70,15 @@ move DDown  v = transposeBoard $ V.map (moveOneDimension DRight) $ transposeBoar
 move DLeft  v = V.map (moveOneDimension DLeft) v
 move DRight v = V.map (moveOneDimension DRight) v
 
+allBoards :: (RandomGen g) => g -> Board -> [Board]
+allBoards g b | isNothing b' = []
+              | otherwise    = maybeToList b' ++ (allBoards g' $ fromJust b')
+    where
+        b' = newCell g $ move m b
+        (m, g') = randomDirection g
+
 main = do
     g <- newStdGen
-    let b = createBoard g
-    putStrLn $ fancyBoard b
-    putStrLn "----------------------------------------"
-    let b1 = newCell g $ move DRight b
-    putStrLn $ fancyBoard b1
-    putStrLn "----------------------------------------"
-    let b2 = newCell g $ move DUp b1
-    putStrLn $ fancyBoard b2
-    putStrLn "----------------------------------------"
+    let bs = allBoards g $ createBoard g
+    mapM_ (putStrLn . fancyBoard) bs 
 
