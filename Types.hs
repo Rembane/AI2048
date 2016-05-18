@@ -5,6 +5,9 @@ module Types (
   -- * Stateful helper functions
   , randomRSt
   , randomDirSt
+
+  -- * More utilities
+  , roundSucc
 ) where
 
 import Control.Monad.State
@@ -12,6 +15,11 @@ import System.Random
 
 data Direction = UpD | RightD | DownD | LeftD
   deriving (Eq, Ord, Bounded, Enum, Show)
+
+-- | Like succ but starts over at the first value when the last has been reached.
+roundSucc :: (Eq b, Bounded b, Enum b) => b -> b
+roundSucc x | maxBound == x = minBound
+            | otherwise     = succ x
 
 instance Random Direction where
   random g = let (r, g') = randomR (fromEnum (minBound :: Direction), fromEnum (maxBound :: Direction)) g
