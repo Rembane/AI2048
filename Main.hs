@@ -18,6 +18,8 @@ rotatingAI d b = do
   b' <- move d b
   case b' of
     Nothing  -> return []
-    Just b'' -> (b'':) <$> rotatingAI (roundSucc d) b''
+    Just b'' -> if hasWon b''
+                   then return [b'']
+                   else (b'':) <$> rotatingAI (roundSucc d) b''
 
 main = putStrLn "Testing..."

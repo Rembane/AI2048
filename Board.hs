@@ -11,6 +11,7 @@ module Board (
   -- * Board question functions
   , validMoves
   , freeCells
+  , hasWon
 
   -- * Utility functions
   , fancyBoard
@@ -108,6 +109,10 @@ validMoves (Board b) = emptyDirections (Board b)
     colCanMove   = canSquish
     -- Takes two rows. If two pairwise elements are equal we can move.
     canSquish r1 r2 = V.or $ V.zipWith (==) r1 r2
+
+-- | Have we won?
+hasWon :: Board -> Bool
+hasWon (Board b) = (V.any . V.any) (== (Just 2048)) b
 
 -- | The directions you get from empty cells.
 emptyDirections :: Board -> S.Set Direction
