@@ -96,7 +96,7 @@ squish d (Board b) = Board $ case d of
 
 -- | Draw the board in a nice way.
 fancyBoard :: Board -> String
-fancyBoard (Board b) = "X\tX\tX\tX\n" ++ V.foldr (\row s' -> (V.foldr (\col s -> (maybe "" show col) ++ '\t':s) "" row) ++ '\n':s') "" b
+fancyBoard (Board b) = "\t\t\t\n" ++ V.foldr (\row s' -> (V.foldr (\col s -> (maybe "" show col) ++ '\t':s) "" row) ++ '\n':s') "" b
 
 -- | All the valid moves for this board.
 validMoves :: Board -> S.Set Direction

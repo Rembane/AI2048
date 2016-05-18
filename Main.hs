@@ -10,8 +10,6 @@ import System.Random
 import Board
 import Types
 
-
-
 -- | This AI rotates the direction with one step for every step.
 rotatingAI :: (RandomGen g) => Direction -> Board -> State g [Board]
 rotatingAI d b = do
@@ -22,4 +20,12 @@ rotatingAI d b = do
                    then return [b'']
                    else (b'':) <$> rotatingAI (roundSucc d) b''
 
-main = putStrLn "Testing..."
+
+-- | Evaluate an AI.
+evalAI :: State StdGen [Board] -> IO [Board]
+evalAI b = do
+  g <- newStdGen
+  return $ evalState b g
+
+main :: IO ()
+main = mapM_ print =<< evalAI (rotatingAI UpD =<< createBoard)
