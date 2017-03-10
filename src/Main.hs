@@ -1,7 +1,7 @@
 module Main where
 
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.Random.Lazy (Rand, evalRand, getRandomR)
 import Data.Function
 import Data.List
 import Data.Maybe
@@ -10,10 +10,15 @@ import qualified Data.Vector as V
 import System.Random
 
 import Board
-import Types
+
+-- | Like succ but starts over at the first value when the last has been reached.
+roundSucc :: (Eq b, Bounded b, Enum b) => b -> b
+roundSucc x | maxBound == x = minBound
+            | otherwise     = succ x
+
 
 -- | This AI rotates the direction with one step for every step.
-rotatingAI :: (RandomGen g) => Direction -> Board -> State g [Board]
+rotatingAI :: (RandomGen g) => Direction -> Board -> Rand g [Board]
 rotatingAI d b = do
   b' <- move d b
   case b' of
@@ -25,7 +30,7 @@ rotatingAI d b = do
 
 -- | This AI makes the move that leads to the most number of free squares.
 -- It can see into the future.
-mostFreeAI :: (RandomGen g) => Board -> State g [Board]
+mostFreeAI :: (RandomGen g) => Board -> Rand g [Board]
 mostFreeAI b = do
   moves <- fmap catMaybes $ mapM (\d -> ((fmap . fmap) (\b' -> (d, V.length $ freeCells b')) (move d b))) $ S.toList $ validMoves b
   case moves of
@@ -39,10 +44,8 @@ mostFreeAI b = do
                        else (b'':) <$> mostFreeAI b''
 
 -- | Evaluate an AI.
-evalAI :: State StdGen [Board] -> IO [Board]
-evalAI b = do
-  g <- newStdGen
-  return $ evalState b g
+evalAI :: Rand StdGen [Board] -> IO [Board]
+evalAI b = evalRand b <$> newStdGen
 
 main :: IO ()
 main = mapM_ print =<< evalAI (mostFreeAI =<< createBoard)

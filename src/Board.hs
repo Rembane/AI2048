@@ -1,6 +1,7 @@
 module Board (
   -- * Types!
   Board(..)
+  , Direction
 
   -- * Constructor
   , createBoard
@@ -20,13 +21,15 @@ module Board (
 ) where
 
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.Random.Lazy (Rand, evalRand, getRandomR)
 import Data.Maybe
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import System.Random
 
-import Types
+-- | Move direction
+data Direction = UpD | RightD | DownD | LeftD
+  deriving (Eq, Ord, Bounded, Enum, Show)
 
 -- Nothing, when nothing in cell, Just Int when something in cell.
 newtype Board = Board (V.Vector (V.Vector (Maybe Int)))
@@ -36,33 +39,37 @@ instance Show Board where
   show = fancyBoard
 
 -- | Constructor
-createBoard :: (RandomGen g) => State g Board
+createBoard :: (RandomGen g) => Rand g Board
 createBoard = do
   Just b1 <- newCell $ Board $ V.replicate 4 (V.replicate 4 Nothing)
   Just b2 <- newCell b1
   return b2
 
 -- | Put a "random" number in a random, empty cell.
-newCell :: (RandomGen g) => Board -> State g (Maybe Board)
+newCell :: (RandomGen g) => Board -> Rand g (Maybe Board)
 newCell b =
   let cs = freeCells b
    in if V.null cs
          then return Nothing
          else do
            value <- newValue
-           pos   <- (cs V.!) <$> randomRSt (0, (V.length cs) - 1)
+           pos   <- (cs V.!) <$> getRandomR (0, (V.length cs) - 1)
            return $ Just $ updateCell pos value b
 
 -- | Creates a random cell value, either 2 or 4.
-newValue :: (RandomGen g) => State g Int
-newValue = (\i -> if i == 9 then 4 else 2) <$> randomRSt (0, 9 :: Int)
+newValue :: (RandomGen g) => Rand g Int
+newValue = do
+  i <- getRandomR (0, 9 :: Int)
+  return $ case i of
+             9 -> 4
+             _ -> 2
 
 -- Update a cell at a certain coordinate.
 updateCell :: (Int,Int) -> Int -> Board -> Board
 updateCell (r,c) new (Board b) = let col = (b V.! r) V.// [(c, Just new)] in Board $ b V.// [(r, col)]
 
 -- | Moves all the numbers in one direction and squishes numbers.
-move :: (RandomGen g) => Direction -> Board -> State g (Maybe Board)
+move :: (RandomGen g) => Direction -> Board -> Rand g (Maybe Board)
 move d b = newCell $ squish d b
 
 -- | Move all numbers to the right place.
@@ -146,7 +153,5 @@ transposeBoard (Board b) = Board $ V.map (\c -> V.map (\r -> (b V.! r) V.! c) ro
         (rows, cols) = (V.fromList [0..(V.length b) - 1], V.fromList [0..(V.length $ b V.! 0) - 1])
 
 -- | Translates a boardstate into a board we can show
-runBoard :: State StdGen Board -> IO Board
-runBoard b = do
-  g <- newStdGen
-  return $ evalState b g
+runBoard :: Rand StdGen Board -> IO Board
+runBoard b = evalRand b <$> newStdGen
