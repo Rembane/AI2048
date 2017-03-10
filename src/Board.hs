@@ -21,8 +21,9 @@ module Board (
 ) where
 
 import Control.Monad
-import Control.Monad.Random.Lazy (Rand, evalRandIO, getRandomR)
+import Control.Monad.Random.Lazy (Rand, evalRandIO, getRandomR, weighted)
 import Data.Maybe
+import Data.Ratio ((%))
 import qualified Data.Vector as V
 import qualified Data.Set as S
 import System.Random
@@ -58,11 +59,7 @@ newCell b =
 
 -- | Creates a random cell value, either 2 or 4.
 newValue :: (RandomGen g) => Rand g Int
-newValue = do
-  i <- getRandomR (0, 9 :: Int)
-  return $ case i of
-             9 -> 4
-             _ -> 2
+newValue = weighted [(4, 1%10), (2, 9%10)]
 
 -- Update a cell at a certain coordinate.
 updateCell :: (Int,Int) -> Int -> Board -> Board
