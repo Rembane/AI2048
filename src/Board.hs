@@ -9,7 +9,7 @@ module Board (
   -- * Board manipulation functions
   , move
 
-  -- * Board question functions
+  -- * Board query functions
   , validMoves
   , freeCells
   , hasWon
@@ -41,29 +41,27 @@ instance Show Board where
 
 -- | Constructor
 createBoard :: (RandomGen g) => Rand g Board
-createBoard = do
-  Just b1 <- newCell $ Board $ V.replicate 4 (V.replicate 4 Nothing)
-  Just b2 <- newCell b1
-  return b2
+createBoard = (fmap fromJust . newCell . fromJust)
+            =<< (newCell . Board . V.replicate 4 . V.replicate 4) Nothing
 
--- | Put a "random" number in a random, empty cell.
+-- | Put either a 2 or a 4 in a random, empty cell.
 newCell :: (RandomGen g) => Board -> Rand g (Maybe Board)
-newCell b =
-  let cs = freeCells b
-   in if V.null cs
-         then return Nothing
-         else do
-           value <- newValue
-           pos   <- (cs V.!) <$> getRandomR (0, (V.length cs) - 1)
-           return $ Just $ updateCell pos value b
+newCell b
+  | V.null cs = pure Nothing
+  | otherwise = fmap Just b'
 
--- | Creates a random cell value, either 2 or 4.
-newValue :: (RandomGen g) => Rand g Int
-newValue = weighted [(4, 1%10), (2, 9%10)]
+   where
+     cs = freeCells b
 
--- Update a cell at a certain coordinate.
-updateCell :: (Int,Int) -> Int -> Board -> Board
-updateCell (r,c) new (Board b) = let col = (b V.! r) V.// [(c, Just new)] in Board $ b V.// [(r, col)]
+     -- Update a cell at a certain coordinate.
+     updateCell :: (Int,Int) -> Int -> Board -> Board
+     updateCell (r,c) new (Board b) = let col = (b V.! r) V.// [(c, Just new)]
+                                       in Board $ b V.// [(r, col)]
+
+     b' = updateCell
+            <$> ((cs V.!) <$> getRandomR (0, (V.length cs) - 1))
+            <*> weighted [(4, 1%10), (2, 9%10)]
+            <*> pure b
 
 -- | Moves all the numbers in one direction and squishes numbers.
 move :: (RandomGen g) => Direction -> Board -> Rand g (Maybe Board)
