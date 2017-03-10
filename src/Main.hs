@@ -1,7 +1,7 @@
 module Main where
 
 import Control.Monad
-import Control.Monad.Random.Lazy (Rand, evalRand, getRandomR)
+import Control.Monad.Random.Lazy (Rand, evalRandIO, getRandomR)
 import Data.Function
 import Data.List
 import Data.Maybe
@@ -45,7 +45,7 @@ mostFreeAI b = do
 
 -- | Evaluate an AI.
 evalAI :: Rand StdGen [Board] -> IO [Board]
-evalAI b = evalRand b <$> newStdGen
+evalAI b = evalRandIO b
 
 main :: IO ()
 main = mapM_ print =<< evalAI (mostFreeAI =<< createBoard)

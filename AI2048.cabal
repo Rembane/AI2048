@@ -15,7 +15,6 @@ executable AI2048
   build-depends:       base,
                        containers,
                        MonadRandom,
-                       mtl,
                        random,
                        vector
   default-language:    Haskell2010

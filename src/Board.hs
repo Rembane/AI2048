@@ -21,7 +21,7 @@ module Board (
 ) where
 
 import Control.Monad
-import Control.Monad.Random.Lazy (Rand, evalRand, getRandomR)
+import Control.Monad.Random.Lazy (Rand, evalRandIO, getRandomR)
 import Data.Maybe
 import qualified Data.Vector as V
 import qualified Data.Set as S
@@ -154,4 +154,4 @@ transposeBoard (Board b) = Board $ V.map (\c -> V.map (\r -> (b V.! r) V.! c) ro
 
 -- | Translates a boardstate into a board we can show
 runBoard :: Rand StdGen Board -> IO Board
-runBoard b = evalRand b <$> newStdGen
+runBoard b = evalRandIO b
