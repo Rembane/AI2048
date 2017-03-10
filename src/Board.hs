@@ -22,7 +22,8 @@ module Board (
 
 import Control.Monad
 import Control.Monad.Random.Lazy (Rand, evalRandIO, getRandomR, weighted)
-import Data.Maybe
+import Data.Maybe (catMaybes, fromJust, isJust, isNothing)
+import Data.Monoid ((<>))
 import Data.Ratio ((%))
 import qualified Data.Vector as V
 import qualified Data.Set as S
@@ -41,7 +42,7 @@ instance Show Board where
 
 -- | Constructor
 createBoard :: (RandomGen g) => Rand g Board
-createBoard = (fmap fromJust . newCell . fromJust)
+createBoard = fmap fromJust . newCell . fromJust
             =<< (newCell . Board . V.replicate 4 . V.replicate 4) Nothing
 
 -- | Put either a 2 or a 4 in a random, empty cell.
@@ -70,14 +71,15 @@ move d b = newCell $ squish d b
 -- | Move all numbers to the right place.
 squish :: Direction -> Board -> Board
 squish d (Board b) = Board $ case d of
-                       UpD    -> mapOverCols b
-                       RightD -> mapOverRows b
-                       LeftD  -> mapOverRows b
-                       DownD  -> mapOverCols b
+                               UpD    -> mapOverCols id b
+                               RightD -> mapOverRows id b
+                               LeftD  -> mapOverRows id b
+                               DownD  -> mapOverCols id b
   where
     transposeVVs vvs = let (Board vvs') = transposeBoard (Board vvs) in vvs'
-    mapOverCols = transposeVVs . mapOverRows . transposeVVs
-    mapOverRows = V.map (addEmptyCells . squishVector)
+
+    mapOverCols prep = transposeVVs . mapOverRows prep . transposeVVs
+    mapOverRows prep = V.map (addEmptyCells . squishRow . V.filter isJust . prep)
 
     addEmptyCells v = let len = V.length v
                           cs  = V.replicate (4 - len) Nothing
@@ -87,14 +89,14 @@ squish d (Board b) = Board $ case d of
                             LeftD  -> v V.++ cs
                             DownD  -> v V.++ cs
 
-    squishVector = V.fromList . map Just . squishList . catMaybes . V.toList
-
-    squishList :: [Int] -> [Int]
-    squishList []       = []
-    squishList (a:[])   = [a]
-    squishList (a:b:xs) = if a == b
-                             then a+b:(squishList xs)
-                             else a:(squishList (b:xs))
+    squishRow :: V.Vector (Maybe Int) -> V.Vector (Maybe Int)
+    squishRow v = case V.length v of
+                    0 -> V.empty
+                    1 -> v
+                    _ -> let (v1, v2) = V.splitAt 2 v
+                          in if v1 V.! 0 == v1 V.! 1
+                                then (V.sum <$> sequenceA v1) `V.cons` squishRow v2
+                                else v1 <> squishRow v2
 
 -- | Draw the board in a nice way.
 fancyBoard :: Board -> String
