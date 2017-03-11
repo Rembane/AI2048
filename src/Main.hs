@@ -32,7 +32,7 @@ rotatingAI d b = do
 -- It can see into the future.
 mostFreeAI :: (RandomGen g) => Board -> Rand g [Board]
 mostFreeAI b = do
-  moves <- fmap catMaybes $ mapM (\d -> ((fmap . fmap) (\b' -> (d, V.length $ freeCells b')) (move d b))) $ S.toList $ validMoves b
+  moves <- fmap catMaybes $ mapM (\d -> ((fmap . fmap) (\b' -> (d, V.length $ emptyCells b')) (move d b))) $ S.toList $ validMoves b
   case moves of
     [] -> return []
     xs -> do

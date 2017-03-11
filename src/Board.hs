@@ -11,17 +11,17 @@ module Board (
 
   -- * Board query functions
   , validMoves
-  , freeCells
+  , emptyCells
   , hasWon
 
   -- * Utility functions
   , fancyBoard
-  , transposeBoard
   , runBoard
 ) where
 
 import Control.Monad
 import Control.Monad.Random.Lazy (Rand, evalRandIO, getRandomR, weighted)
+import Data.List (intercalate, lookup)
 import Data.Maybe (catMaybes, fromJust, isJust, isNothing)
 import Data.Monoid ((<>))
 import Data.Ratio ((%))
@@ -34,7 +34,7 @@ data Direction = UpD | RightD | DownD | LeftD
   deriving (Eq, Ord, Bounded, Enum, Show)
 
 -- Nothing, when nothing in cell, Just Int when something in cell.
-newtype Board = Board (V.Vector (V.Vector (Maybe Int)))
+newtype Board = Board { unpackBoard :: V.Vector (V.Vector (Maybe Int)) }
   deriving (Eq)
 
 instance Show Board where
@@ -48,11 +48,11 @@ createBoard = fmap fromJust . newCell . fromJust
 -- | Put either a 2 or a 4 in a random, empty cell.
 newCell :: (RandomGen g) => Board -> Rand g (Maybe Board)
 newCell b
-  | V.null cs = pure Nothing
+  | null cs   = pure Nothing
   | otherwise = fmap Just b'
 
    where
-     cs = freeCells b
+     cs = emptyCells b
 
      -- Update a cell at a certain coordinate.
      updateCell :: (Int,Int) -> Int -> Board -> Board
@@ -60,7 +60,7 @@ newCell b
                                        in Board $ b V.// [(r, col)]
 
      b' = updateCell
-            <$> ((cs V.!) <$> getRandomR (0, (V.length cs) - 1))
+            <$> ((cs V.!) <$> getRandomR (0, length cs - 1))
             <*> weighted [(4, 1%10), (2, 9%10)]
             <*> pure b
 
@@ -70,85 +70,59 @@ move d b = newCell $ squish d b
 
 -- | Move all numbers to the right place.
 squish :: Direction -> Board -> Board
-squish d (Board b) = Board $ case d of
-                               UpD    -> mapOverCols id b
-                               RightD -> mapOverRows id b
-                               LeftD  -> mapOverRows id b
-                               DownD  -> mapOverCols id b
+squish d b = case d of
+               UpD    -> mapOver (V.reverse) (transposeBoard b)
+               RightD -> mapOver (V.reverse) b
+               LeftD  -> mapOver id b
+               DownD  -> mapOver id (transposeBoard b)
   where
-    transposeVVs vvs = let (Board vvs') = transposeBoard (Board vvs) in vvs'
+    mapOver :: (V.Vector (Maybe Int) -> V.Vector (Maybe Int)) -> Board -> Board
+    mapOver prep = Board . V.map (prep . addEmptyCells . squishRow . V.filter isJust . prep) . unpackBoard
 
-    mapOverCols prep = transposeVVs . mapOverRows prep . transposeVVs
-    mapOverRows prep = V.map (addEmptyCells . squishRow . V.filter isJust . prep)
+    -- From left to right
+    addEmptyCells v = v <> V.replicate (4 - length v) Nothing
 
-    addEmptyCells v = let len = V.length v
-                          cs  = V.replicate (4 - len) Nothing
-                       in case d of
-                            UpD    -> cs V.++ v
-                            RightD -> cs V.++ v
-                            LeftD  -> v V.++ cs
-                            DownD  -> v V.++ cs
-
+    -- From left to right
     squishRow :: V.Vector (Maybe Int) -> V.Vector (Maybe Int)
-    squishRow v = case V.length v of
-                    0 -> V.empty
+    squishRow v = case length v of
+                    0 -> mempty
                     1 -> v
                     _ -> let (v1, v2) = V.splitAt 2 v
                           in if v1 V.! 0 == v1 V.! 1
                                 then (V.sum <$> sequenceA v1) `V.cons` squishRow v2
                                 else v1 <> squishRow v2
 
+-- | Transposes a board.
+-- transposeBoard . transposeBoard == id
+transposeBoard :: Board -> Board
+transposeBoard (Board b) = Board $ V.fromList $ fmap (\c -> V.fromList $ fmap (\r -> (b V.! r) V.! c) [0..3]) [0..3]
+
 -- | Draw the board in a nice way.
 fancyBoard :: Board -> String
-fancyBoard (Board b) = "\t\t\t\n" ++ V.foldr (\row s' -> (V.foldr (\col s -> (maybe "" show col) ++ '\t':s) "" row) ++ '\n':s') "" b
+fancyBoard = ("\n" ++) . intercalate "\n" . V.toList . V.map renderCols . unpackBoard
+  where
+    renderCols = intercalate "\t" . V.toList . V.map (maybe "" show)
 
 -- | All the valid moves for this board.
 validMoves :: Board -> S.Set Direction
-validMoves (Board b) = emptyDirections (Board b)
-  `S.union` V.foldl (\s r -> S.union s $ if rowCanMove r then S.fromList [LeftD, RightD] else S.empty) S.empty b
-  `S.union` if V.or $ V.zipWith colCanMove b (V.tail b) then S.fromList [UpD, DownD] else S.empty
-
-  where
-    rowCanMove r = canSquish r (V.tail r)
-    colCanMove   = canSquish
-    -- Takes two rows. If two pairwise elements are equal we can move.
-    canSquish r1 r2 = V.or $ V.zipWith (==) r1 r2
+validMoves b = (S.filter ((/= b) . (`squish` b)) . emptyDirections) b
 
 -- | Have we won?
 hasWon :: Board -> Bool
-hasWon (Board b) = (V.any . V.any) (== (Just 2048)) b
+hasWon = (V.any . V.any) (== (Just 2048)) . unpackBoard
 
 -- | The directions you get from empty cells.
 emptyDirections :: Board -> S.Set Direction
-emptyDirections (Board b) = rows b `S.union` cols b
+emptyDirections = S.fromList . concat . V.toList . V.map go . emptyCells
   where
-    if' :: Bool -> a -> a -> a
-    if' True  a _ = a
-    if' False _ b = b
-
-    rows b = V.foldl (\s r -> S.union s $ S.fromList $
-                       if (V.head r) == Nothing then [RightD] else [] ++
-                       if (V.last r) == Nothing then [LeftD]  else [] ++
-                       if (V.any (== Nothing) . V.init . V.tail) r then [RightD, LeftD] else []
-                     ) S.empty b
-
-    cols b = S.fromList $
-      if V.any (== Nothing) (V.head b) then [DownD] else [] ++
-      if V.any (== Nothing) (V.last b) then [UpD]   else [] ++
-      if (V.any (V.any (== Nothing)) . (V.init . V.tail)) b then [DownD, UpD] else []
+    go :: (Int, Int) -> [Direction]
+    go (r,c) = catMaybes [ lookup r [(0, DownD),  (3, UpD)]
+                         , lookup c [(0, RightD), (3, LeftD)]
+                         ]
 
 -- Return the indexes of all the cells that do not contain anything.
-freeCells :: Board -> (V.Vector (Int, Int))
-freeCells (Board b) = join $ V.imap (\ri r -> V.map (\ci -> (ri,ci)) $ V.findIndices isNothing r) b
+emptyCells :: Board -> (V.Vector (Int, Int))
+emptyCells = join . V.imap (\ri r -> V.map (\ci -> (ri,ci)) $ V.findIndices isNothing r) . unpackBoard
 
--- | Transpose a board.
--- Cols become rows. Like for matrices.
--- (transposeBoard . transposeBoard) == id
-transposeBoard :: Board -> Board
-transposeBoard (Board b) = Board $ V.map (\c -> V.map (\r -> (b V.! r) V.! c) rows) cols
-    where
-        (rows, cols) = (V.fromList [0..(V.length b) - 1], V.fromList [0..(V.length $ b V.! 0) - 1])
-
--- | Translates a boardstate into a board we can show
 runBoard :: Rand StdGen Board -> IO Board
 runBoard b = evalRandIO b
