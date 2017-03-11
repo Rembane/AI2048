@@ -1,13 +1,17 @@
-module Board (
+module Board
   -- * Types!
-  Board(..)
-  , Direction
+  ( Board(..)
+  , Direction(..)
 
-  -- * Constructor
+  -- * Creation
   , createBoard
+  , emptyBoard
+  , fromList
 
   -- * Board manipulation functions
   , move
+  , squish
+  , updateCell
 
   -- * Board query functions
   , validMoves
@@ -16,6 +20,8 @@ module Board (
 
   -- * Utility functions
   , fancyBoard
+
+  -- * Run function
   , runBoard
 ) where
 
@@ -33,7 +39,14 @@ import System.Random
 data Direction = UpD | RightD | DownD | LeftD
   deriving (Eq, Ord, Bounded, Enum, Show)
 
+-- | A gameboard.
 -- Nothing, when nothing in cell, Just Int when something in cell.
+--
+-- Coordinates:
+-- (0,0) (0,1) (0,2) (0,3)
+-- (1,0) (1,1) (1,2) (1,3)
+-- (2,0) (2,1) (2,2) (2,3)
+-- (3,0) (3,1) (3,2) (3,3)
 newtype Board = Board { unpackBoard :: V.Vector (V.Vector (Maybe Int)) }
   deriving (Eq)
 
@@ -41,9 +54,17 @@ instance Show Board where
   show = fancyBoard
 
 -- | Constructor
+-- Adds to randomly added cells to the board.
 createBoard :: (RandomGen g) => Rand g Board
-createBoard = fmap fromJust . newCell . fromJust
-            =<< (newCell . Board . V.replicate 4 . V.replicate 4) Nothing
+createBoard = fmap fromJust . newCell . fromJust =<< newCell emptyBoard
+
+emptyBoard :: Board
+emptyBoard = (Board . V.replicate 4 . V.replicate 4) Nothing
+
+-- | Create a board from a list of coordinates and values.
+-- (row, col, value)
+fromList :: [(Int, Int, Int)] -> Board
+fromList = foldr (\(r,c,v) b -> updateCell (r,c) (Just v) b) emptyBoard
 
 -- | Put either a 2 or a 4 in a random, empty cell.
 newCell :: (RandomGen g) => Board -> Rand g (Maybe Board)
@@ -54,15 +75,15 @@ newCell b
    where
      cs = emptyCells b
 
-     -- Update a cell at a certain coordinate.
-     updateCell :: (Int,Int) -> Int -> Board -> Board
-     updateCell (r,c) new (Board b) = let col = (b V.! r) V.// [(c, Just new)]
-                                       in Board $ b V.// [(r, col)]
-
      b' = updateCell
             <$> ((cs V.!) <$> getRandomR (0, length cs - 1))
-            <*> weighted [(4, 1%10), (2, 9%10)]
+            <*> (Just <$> weighted [(4, 1%10), (2, 9%10)])
             <*> pure b
+
+-- Update a cell at a certain coordinate.
+updateCell :: (Int,Int) -> Maybe Int -> Board -> Board
+updateCell (r,c) new (Board b) = let col = (b V.! r) V.// [(c, new)]
+                                       in Board $ b V.// [(r, col)]
 
 -- | Moves all the numbers in one direction and squishes numbers.
 move :: (RandomGen g) => Direction -> Board -> Rand g (Maybe Board)
@@ -71,10 +92,10 @@ move d b = newCell $ squish d b
 -- | Move all numbers to the right place.
 squish :: Direction -> Board -> Board
 squish d b = case d of
-               UpD    -> mapOver (V.reverse) (transposeBoard b)
-               RightD -> mapOver (V.reverse) b
+               UpD    -> (transposeBoard . mapOver id . transposeBoard) b
+               RightD -> mapOver V.reverse b
                LeftD  -> mapOver id b
-               DownD  -> mapOver id (transposeBoard b)
+               DownD  -> (transposeBoard . mapOver V.reverse . transposeBoard) b
   where
     mapOver :: (V.Vector (Maybe Int) -> V.Vector (Maybe Int)) -> Board -> Board
     mapOver prep = Board . V.map (prep . addEmptyCells . squishRow . V.filter isJust . prep) . unpackBoard
@@ -99,7 +120,7 @@ transposeBoard (Board b) = Board $ V.fromList $ fmap (\c -> V.fromList $ fmap (\
 
 -- | Draw the board in a nice way.
 fancyBoard :: Board -> String
-fancyBoard = ("\n" ++) . intercalate "\n" . V.toList . V.map renderCols . unpackBoard
+fancyBoard = intercalate "\n" . V.toList . V.map renderCols . unpackBoard
   where
     renderCols = intercalate "\t" . V.toList . V.map (maybe "" show)
 

@@ -10,11 +10,28 @@ cabal-version:       >=1.10
 
 executable AI2048
   main-is:             Main.hs
-  hs-source-dirs:      src
-  other-modules:       Board
+  hs-source-dirs:      exe
+  build-depends:       base, AI2048
+  default-language:    Haskell2010
+
+library
+  exposed-modules:     AIs, Board
   build-depends:       base,
                        containers,
                        MonadRandom,
                        random,
                        vector
+  hs-source-dirs:      src
   default-language:    Haskell2010
+
+Test-Suite test-AI2048
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Test.hs
+  build-depends:       base,
+                       AI2048,
+                       QuickCheck,
+                       hspec,
+                       vector
+  default-language:    Haskell2010
+

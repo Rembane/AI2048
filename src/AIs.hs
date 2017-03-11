@@ -1,4 +1,6 @@
-module Main where
+module AIs
+  (runAllAIs)
+where
 
 import Control.Monad
 import Control.Monad.Random.Lazy (Rand, evalRandIO, getRandomR)
@@ -15,7 +17,6 @@ import Board
 roundSucc :: (Eq b, Bounded b, Enum b) => b -> b
 roundSucc x | maxBound == x = minBound
             | otherwise     = succ x
-
 
 -- | This AI rotates the direction with one step for every step.
 rotatingAI :: (RandomGen g) => Direction -> Board -> Rand g [Board]
@@ -43,11 +44,8 @@ mostFreeAI b = do
                        then return [b'']
                        else (b'':) <$> mostFreeAI b''
 
--- | Evaluate an AI.
-evalAI :: Rand StdGen [Board] -> IO [Board]
-evalAI b = evalRandIO b
-
-main :: IO ()
-main = mapM_ print =<< evalAI (mostFreeAI =<< createBoard)
+runAllAIs :: IO ()
+runAllAIs  = mapM_ print =<< evalRandIO (mostFreeAI =<< createBoard)
 
 -- main = mapM_ print =<< evalAI (rotatingAI UpD =<< createBoard)
+
